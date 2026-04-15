@@ -1,0 +1,36 @@
+# Secrets / local env
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+whisper-service/.env
+whisper-service/.env.*
+!whisper-service/.env.example
+
+# Dependencies / build output
+node_modules/
+frontend/node_modules/
+frontend/dist/
+backend/vendor/bundle/
+
+# Runtime / temp files
+*.log
+*.pid
+backend/log/
+backend/tmp/
+backend/storage/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS noise
+.DS_Store
+Thumbs.db

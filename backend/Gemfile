@@ -1,0 +1,42 @@
+source "https://rubygems.org"
+git_source(:github) { |repo| "https://github.com/#{repo}.git" }
+
+ruby "3.2.2"
+
+gem "rails", "~> 7.1.0"
+gem "pg", "~> 1.1"
+gem "puma", "~> 6.0"
+gem "rack-cors"
+
+# Real-time streaming via ActionCable + Redis
+gem "redis", "~> 5.0"
+gem "actioncable"
+
+# Authentication
+gem "devise"
+gem "devise-jwt"
+
+# Serialization
+gem "active_model_serializers", "~> 0.10"
+
+# HTTP client for calling Ollama and Whisper
+gem "httparty"
+
+# Environment variables
+gem "dotenv-rails"
+
+group :development, :test do
+  gem "rspec-rails", "~> 6.0"
+  gem "factory_bot_rails"
+  gem "faker"
+  gem "shoulda-matchers"
+  gem "database_cleaner-active_record"
+  gem "webmock"
+  gem "byebug"
+end
+
+group :development do
+  gem "listen", "~> 3.3"
+  gem "spring"
+  gem "rubocop-rails", require: false
+end

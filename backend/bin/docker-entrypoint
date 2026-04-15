@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+# Create databases directly via psql â€” bypasses Rails environment loading
+# which triggers the devise/routes circular dependency during db:create
+export PGPASSWORD="$DB_PASSWORD"
+
+for DB in speaking_ai_development speaking_ai_test; do
+  psql -h "$DB_HOST" -U "$DB_USERNAME" -tc "SELECT 1 FROM pg_database WHERE datname = '$DB'" | grep -q 1 || \
+    psql -h "$DB_HOST" -U "$DB_USERNAME" -c "CREATE DATABASE $DB"
+done
+
+# Now run migrations (safe â€” app is fully initialized at this point)
+bundle exec rails db:migrate
+
+# Remove stale PID file left by a previous container run.
+# Reason: rails server refuses to start if tmp/pids/server.pid already exists.
+rm -f tmp/pids/server.pid
+
+# Start with reloader in development, plain Puma in other environments.
+# Reason: `rails server` enables Zeitwerk + ActiveSupport file-change reloading
+# so code edits take effect without a container restart.
+if [ "$RAILS_ENV" = "development" ]; then
+  exec bundle exec rails server -b 0.0.0.0 -p 3001
+else
+  exec bundle exec puma -C config/puma.rb
+fi
