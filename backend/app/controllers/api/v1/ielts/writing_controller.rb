@@ -11,15 +11,15 @@ module Api
           task_type = params[:task_type].presence || "task_2"
 
           if essay.blank? || prompt.blank?
-            return render json: { error: "essay and prompt are required" }, status: :bad_request
+            return render json: error_payload("invalid_input", "essay and prompt are required"), status: :bad_request
           end
 
           result = Ai::WritingGradingService.call(task_type: task_type, prompt: prompt, essay: essay)
-          return render json: { error: result[:error] }, status: :unprocessable_entity if result[:status] != :success
+          return render json: error_payload("writing_grading_failed", result[:error]), status: :unprocessable_entity if result[:status] != :success
 
           data = result[:data]
           unless valid_grading_shape?(data)
-            return render json: { error: "AI returned malformed writing evaluation" }, status: :unprocessable_entity
+            return render json: error_payload("malformed_ai_payload", "AI returned malformed writing evaluation"), status: :unprocessable_entity
           end
 
           attempt = {
@@ -52,7 +52,7 @@ module Api
 
           render json: {
             attempts: records.map { |r| (r.raw_analysis || {}).merge("id" => r.id, "created_at" => r.created_at) },
-            meta: { total: total, page: page, per_page: per_page, pages: (total.to_f / per_page).ceil }
+            meta: { total: total, page: page, per_page: per_page, total_pages: (total.to_f / per_page).ceil }
           }
         end
 
@@ -66,7 +66,22 @@ module Api
           return false unless criteria.is_a?(Hash)
 
           required = %w[task_response coherence_cohesion lexical_resource grammar_range_accuracy]
-          required.all? { |k| criteria[k].is_a?(Hash) && criteria[k]["score"].present? }
+          required.all? do |k|
+            node = criteria[k]
+            node.is_a?(Hash) &&
+              node["score"].present? &&
+              node["feedback"].present? &&
+              score_in_band_range?(node["score"])
+          end
+        end
+
+        def score_in_band_range?(score)
+          val = score.to_f
+          val >= 0.0 && val <= 9.0
+        end
+
+        def error_payload(code, message)
+          { error: message, error_code: code }
         end
       end
     end

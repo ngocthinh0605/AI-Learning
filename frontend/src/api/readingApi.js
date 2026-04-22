@@ -81,9 +81,34 @@ export async function fetchWeaknessProfile() {
  * Fetches AI-generated training micro-exercises based on the user's weakest skill.
  * @param {Object} [params]
  * @param {number} [params.count=3] - number of exercises to generate
+ * @param {string} [params.taskType] - planner-aligned task type
+ * @param {string} [params.weaknessFocus] - specific weakness focus area
+ * @param {string} [params.cognitiveBias] - dominant cognitive bias
  * @returns {Promise<{ weakness_type: string, exercises: Array }>}
  */
-export async function fetchTrainingExercises({ count = 3 } = {}) {
-  const response = await apiClient.get("/ielts/reading/training", { params: { count } });
+export async function fetchTrainingExercises({ count = 3, taskType, weaknessFocus, cognitiveBias } = {}) {
+  const response = await apiClient.get("/ielts/reading/training", {
+    params: {
+      count,
+      task_type: taskType,
+      weakness_focus: weaknessFocus,
+      cognitive_bias: cognitiveBias,
+    },
+  });
+  return response.data;
+}
+
+/**
+ * Evaluates improvement between pre-training baseline and training results.
+ * @param {Object} params
+ * @param {Object} params.previousAttemptData
+ * @param {Object} params.trainingSessionResults
+ * @returns {Promise<{ improvement: { before: number, after: number, delta: number }, insight: string, next_focus: string }>}
+ */
+export async function evaluateTrainingImprovement({ previousAttemptData, trainingSessionResults }) {
+  const response = await apiClient.post("/pipeline/evaluate_improvement", {
+    previous_attempt_data: previousAttemptData,
+    training_session_results: trainingSessionResults,
+  });
   return response.data;
 }

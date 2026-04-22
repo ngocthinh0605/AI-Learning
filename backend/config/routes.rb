@@ -15,6 +15,11 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
+      namespace :pipeline do
+        post "analyze_attempt", to: "mistake_analysis#create"
+          post "evaluate_improvement", to: "improvement_evaluation#create"
+      end
+
       # Conversation endpoints
       resources :conversations, only: [:index, :show, :create, :destroy] do
         resources :messages, only: [:index, :create]
@@ -23,8 +28,9 @@ Rails.application.routes.draw do
         member do
           post :join
           delete :leave
+          delete "members/:user_id", to: "rooms#remove_member"
         end
-        resources :messages, only: [:create], controller: "room_messages"
+        resources :messages, only: [:create, :destroy], controller: "room_messages"
       end
 
       # Vocabulary endpoints
@@ -68,6 +74,8 @@ Rails.application.routes.draw do
       # Learning profile (memory core), session logging, AI pipelines
       get  "learning_profile", to: "learning_profiles#show"
       get  "learning_progress", to: "learning_progress#show"
+      get  "daily_learning_plan", to: "daily_learning_plan#index"
+      post "daily_learning_plan", to: "daily_learning_plan#create"
       post "session_outcomes", to: "session_outcomes#create"
       post "speaking_feedback", to: "speaking_feedback#create"
       get  "speaking_attempts", to: "speaking_attempts#index"

@@ -381,6 +381,7 @@ docker compose run --rm --entrypoint "" backend bundle exec rspec
 - **Practice Mode** — untimed, choose difficulty and topic
 - **Mock Test Mode** — 60-minute timed test
 - **Training Mode** — micro-exercises targeting your weakest skill
+- **Cross-skill training alignment** — weakness-driven interventions across reading/vocab/writing/speaking support tasks
 - **Review Mode** — revisit mistakes with AI explanations + similar practice questions
 - **Weakness Profile** — tracks accuracy by question type over time
 - **Band score estimation** and XP rewards
@@ -395,6 +396,9 @@ docker compose run --rm --entrypoint "" backend bundle exec rspec
 - **Learning insights** — aggregated dashboard JSON from session data
 - **Tutor chat (structured)** — natural reply plus optional corrections JSON
 - **Sidebar quick Q&A** — streaming NDJSON to Gemma (`POST /sidebar_chat`)
+- **Mistake analysis pipeline** — strict cognitive/surface error analysis (`POST /pipeline/analyze_attempt`)
+- **Improvement evaluation pipeline** — strict before/after skill-change analysis (`POST /pipeline/evaluate_improvement`)
+- **Cross-skill daily planner** — weakness-to-skill mapping with multi-skill task mix enforcement
 
 ---
 
@@ -464,6 +468,13 @@ All protected endpoints require: `Authorization: Bearer <token>`
 | `POST` | `/api/v1/learning_insights`  | Dashboard insights (optional `learning_data` body) |
 | `POST` | `/api/v1/tutor_chat`         | Structured tutor reply (`message`, `messages`)   |
 | `POST` | `/api/v1/sidebar_chat`       | Sidebar Q&A; streams `application/x-ndjson`      |
+
+### Pipeline endpoints (all require JWT)
+
+| Method | Path                                    | Description                                                  |
+| ------ | --------------------------------------- | ------------------------------------------------------------ |
+| `POST` | `/api/v1/pipeline/analyze_attempt`      | Mistake analysis from answers/passage with strict JSON shape |
+| `POST` | `/api/v1/pipeline/evaluate_improvement` | Before/after training evaluation with validated delta math   |
 
 ### WebSocket
 
@@ -625,6 +636,9 @@ For deeper documentation on each service:
 - Multiplayer conversation rooms MVP (room model, join/leave APIs, realtime room messages)
 - Mobile app scaffold (React Native structure + API contracts + base tests)
 - Unified dashboard progress view (cross-skill counts, average bands, recent trend)
+- Daily learning planner (strict JSON personalized plan generation with validation)
+- AI pipeline foundations (mistake analysis, training generator alignment, improvement evaluation)
+- Cross-skill daily planning UX (mix breakdown in generated plan + history cards)
 
 ---
 
@@ -643,3 +657,21 @@ For deeper documentation on each service:
 - Fix realtime duplication/order edge cases in conversation and room channels
 - Tighten permission checks and error states for room join/leave/post flows
 - Improve UX fallback handling for empty data, loading states, and failed requests
+
+### Bug-Fix Sprint 1 Completed
+
+- Normalized IELTS `attempts.meta` pagination key to `total_pages` where inconsistent
+- Added stricter malformed AI payload validation for Listening and Writing endpoints
+- Standardized permission/error responses for room APIs with `error_code` fields
+
+### Bug-Fix Sprint 2 Completed
+
+- Prevented duplicate room message rendering by deduplicating client inserts by `message.id`
+- Added realtime room presence signals (`room_presence`) with online count in room UI
+- Added owner moderation hooks: delete room message and remove room member
+
+### Bug-Fix Sprint 3 Completed
+
+- Added stronger loading/error/empty states in Listening, Writing, and Rooms pages
+- Added retry actions for transient failures (`Retry history`, `Retry attempts`, `Retry rooms`, `Retry last request`)
+- Added resilience-focused UI tests for retry/error behavior

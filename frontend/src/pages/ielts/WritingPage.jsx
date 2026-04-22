@@ -12,15 +12,22 @@ export default function WritingPage() {
   const [essay, setEssay] = useState("");
   const [result, setResult] = useState(null);
   const [attempts, setAttempts] = useState([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(true);
+  const [attemptsError, setAttemptsError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function loadAttempts() {
+    setAttemptsLoading(true);
+    setAttemptsError("");
     try {
       const data = await fetchWritingAttempts(1);
       setAttempts(data.attempts || []);
-    } catch {
+    } catch (e) {
       setAttempts([]);
+      setAttemptsError(e?.response?.data?.error || "Failed to load writing attempts.");
+    } finally {
+      setAttemptsLoading(false);
     }
   }
 
@@ -107,8 +114,15 @@ export default function WritingPage() {
       </div>
 
       <div className="card mt-6">
-        <h3 className="text-white font-semibold mb-3">Recent Writing Attempts</h3>
-        {attempts.length === 0 ? (
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-semibold">Recent Writing Attempts</h3>
+          <button onClick={loadAttempts} className="btn-ghost text-xs">Retry attempts</button>
+        </div>
+        {attemptsLoading ? (
+          <p className="text-sm text-gray-500">Loading attempts...</p>
+        ) : attemptsError ? (
+          <p className="text-sm text-red-400">{attemptsError}</p>
+        ) : attempts.length === 0 ? (
           <p className="text-sm text-gray-500">No attempts yet.</p>
         ) : (
           <div className="space-y-2">

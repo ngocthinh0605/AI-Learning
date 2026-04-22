@@ -158,15 +158,25 @@ export const handlers = [
   http.get(`${BASE}/ielts/reading/training`, () =>
     HttpResponse.json({
       weakness_type: "paraphrase",
+      task_type: "reading_training",
+      weakness_focus: "matching_heading",
+      cognitive_bias: "paraphrase_confusion",
       exercises: [
         {
-          type:        "paraphrase_match",
-          prompt:      "Which sentence means the same as 'Urban farming has grown'?",
+          question:    "Which sentence means the same as 'Urban farming has grown'?",
           options:     ["A. City agriculture expanded", "B. Rural farming declined"],
-          answer:      "A. City agriculture expanded",
+          correct_answer: "A. City agriculture expanded",
           explanation: "'Grown' is paraphrased as 'expanded'.",
         },
       ],
+    })
+  ),
+
+  http.post(`${BASE}/pipeline/evaluate_improvement`, () =>
+    HttpResponse.json({
+      improvement: { before: 0.4, after: 0.67, delta: 0.27 },
+      insight: "Inference improved after targeted distractor drills.",
+      next_focus: "paraphrase_confusion",
     })
   ),
 ];

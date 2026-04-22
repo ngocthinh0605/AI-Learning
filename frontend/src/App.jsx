@@ -8,6 +8,7 @@ import ConversationPage from "./pages/ConversationPage";
 import VocabularyPage from "./pages/VocabularyPage";
 import ReviewSessionPage from "./pages/ReviewSessionPage";
 import RoomsPage from "./pages/RoomsPage";
+import DailyLearningPlanPage from "./pages/DailyLearningPlanPage";
 import IELTSPage from "./pages/IELTSPage";
 import ReadingPage from "./pages/ielts/ReadingPage";
 import ListeningPage from "./pages/ielts/ListeningPage";
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="vocabulary" element={<VocabularyPage />} />
         <Route path="vocabulary/review" element={<ReviewSessionPage />} />
         <Route path="rooms" element={<RoomsPage />} />
+        <Route path="daily-plan" element={<DailyLearningPlanPage />} />
         <Route path="ielts" element={<IELTSPage />} />
         <Route path="ielts/reading" element={<ReadingPage />} />
         <Route path="ielts/listening" element={<ListeningPage />} />

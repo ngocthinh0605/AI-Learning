@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createRoom, fetchRoom, fetchRooms, joinRoom, sendRoomMessage } from "../../api/roomsApi";
+import { createRoom, deleteRoomMessage, fetchRoom, fetchRooms, joinRoom, removeRoomMember, sendRoomMessage } from "../../api/roomsApi";
 
 const get = vi.fn();
 const post = vi.fn();
+const del = vi.fn();
 
 vi.mock("../../api/client", () => ({
-  default: { get, post, delete: vi.fn() },
+  default: { get, post, delete: del },
 }));
 
 describe("roomsApi", () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset();
+    del.mockReset();
   });
 
   it("fetches rooms list", async () => {
@@ -40,5 +42,13 @@ describe("roomsApi", () => {
     const data = await fetchRoom("r1");
     expect(get).toHaveBeenCalledWith("/rooms/r1");
     expect(data.room.id).toBe("r1");
+  });
+
+  it("deletes room message and removes member", async () => {
+    del.mockResolvedValueOnce({ data: { deleted: true } }).mockResolvedValueOnce({ data: { removed: true } });
+    await deleteRoomMessage({ roomId: "r1", messageId: "m1" });
+    await removeRoomMember({ roomId: "r1", userId: "u1" });
+    expect(del).toHaveBeenCalledWith("/rooms/r1/messages/m1");
+    expect(del).toHaveBeenCalledWith("/rooms/r1/members/u1");
   });
 });

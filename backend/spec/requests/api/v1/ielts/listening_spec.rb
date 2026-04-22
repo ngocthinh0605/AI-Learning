@@ -31,6 +31,17 @@ RSpec.describe "Api::V1::Ielts::Listening", type: :request do
       allow(Ai::ListeningPassageService).to receive(:call).and_return({ status: :error, error: "Ollama down" })
       post "/api/v1/ielts/listening/passages", headers: headers, params: { difficulty: "band_6" }, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
+      body = JSON.parse(response.body)
+      expect(body["error_code"]).to eq("listening_generation_failed")
+    end
+
+    it "returns 422 for malformed AI payload structure" do
+      allow(Ai::ListeningPassageService).to receive(:call).and_return(
+        { status: :success, data: { "title" => "Bad", "transcript" => "x", "questions" => [{ "id" => 1 }] } }
+      )
+      post "/api/v1/ielts/listening/passages", headers: headers, params: { difficulty: "band_6" }, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)["error_code"]).to eq("malformed_ai_payload")
     end
   end
 
@@ -60,6 +71,7 @@ RSpec.describe "Api::V1::Ielts::Listening", type: :request do
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       expect(body["attempts"].length).to eq(1)
+      expect(body["meta"]).to have_key("total_pages")
     end
   end
 end

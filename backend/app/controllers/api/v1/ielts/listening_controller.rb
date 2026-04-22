@@ -11,11 +11,11 @@ module Api
             topic: params[:topic],
             accent: params[:accent].presence || "mixed"
           )
-          return render json: { error: result[:error] }, status: :unprocessable_entity if result[:status] != :success
+          return render json: error_payload("listening_generation_failed", result[:error]), status: :unprocessable_entity if result[:status] != :success
 
           data = result[:data]
-          if data["title"].blank? || data["transcript"].blank? || !data["questions"].is_a?(Array)
-            return render json: { error: "AI returned malformed listening data" }, status: :unprocessable_entity
+          unless valid_passage_shape?(data)
+            return render json: error_payload("malformed_ai_payload", "AI returned malformed listening data"), status: :unprocessable_entity
           end
 
           render json: {
@@ -37,7 +37,7 @@ module Api
 
           service = Ai::ListeningEvaluationService.new(questions, answers)
           result = service.call
-          return render json: { error: result[:error] }, status: :unprocessable_entity if result[:status] != :success
+          return render json: error_payload("listening_evaluation_failed", result[:error]), status: :unprocessable_entity if result[:status] != :success
 
           attempt = {
             id: SecureRandom.uuid,
@@ -74,8 +74,27 @@ module Api
 
           render json: {
             attempts: records.map { |r| (r.raw_analysis || {}).merge("created_at" => r.created_at, "id" => r.id) },
-            meta: { total: total, page: page, per_page: per_page, pages: (total.to_f / per_page).ceil }
+            meta: { total: total, page: page, per_page: per_page, total_pages: (total.to_f / per_page).ceil }
           }
+        end
+
+        private
+
+        def valid_passage_shape?(data)
+          return false unless data.is_a?(Hash)
+          return false if data["title"].blank? || data["transcript"].blank?
+          return false unless data["questions"].is_a?(Array) && data["questions"].any?
+
+          data["questions"].all? do |q|
+            q.is_a?(Hash) &&
+              q["id"].present? &&
+              q["answer"].present? &&
+              (q["question"].present? || q["statement"].present?)
+          end
+        end
+
+        def error_payload(code, message)
+          { error: message, error_code: code }
         end
       end
     end

@@ -4,15 +4,16 @@ RSpec.describe Ai::TrainingExerciseService do
   let(:snippet) { "Urban farming has grown significantly in the last decade." }
 
   let(:ai_exercises_json) do
-    [
-      {
-        "type"        => "paraphrase_match",
-        "prompt"      => "Which sentence means the same as 'Urban farming has grown'?",
-        "options"     => ["A. City agriculture expanded", "B. Rural farming declined"],
-        "answer"      => "A. City agriculture expanded",
-        "explanation" => "'Grown' is paraphrased as 'expanded'."
-      }
-    ].to_json
+    {
+      "questions" => [
+        {
+          "question" => "Which option best paraphrases the sentence?",
+          "options" => ["A", "B", "C"],
+          "correct_answer" => "A",
+          "explanation" => "A preserves the meaning without lexical overlap."
+        }
+      ]
+    }.to_json
   end
 
   describe "#call" do
@@ -27,11 +28,17 @@ RSpec.describe Ai::TrainingExerciseService do
       end
 
       it "returns status :success with exercises array" do
-        service = described_class.new(weakness_type: "paraphrase", passage_snippet: snippet)
+        service = described_class.new(
+          task_type: "reading_training",
+          weakness_focus: "matching_heading",
+          cognitive_bias: "paraphrase_confusion",
+          passage_snippet: snippet
+        )
         result  = service.call
         expect(result[:status]).to eq(:success)
         expect(result[:exercises]).to be_an(Array)
-        expect(result[:exercises].first["type"]).to eq("paraphrase_match")
+        expect(result[:exercises].first["question"]).to be_present
+        expect(result[:exercises].first["correct_answer"]).to eq("A")
       end
     end
 
@@ -42,30 +49,36 @@ RSpec.describe Ai::TrainingExerciseService do
       end
 
       it "returns status :error" do
-        service = described_class.new(weakness_type: "paraphrase", passage_snippet: snippet)
+        service = described_class.new(
+          task_type: "reading_training",
+          weakness_focus: "matching_heading",
+          cognitive_bias: "paraphrase_confusion",
+          passage_snippet: snippet
+        )
         result  = service.call
         expect(result[:status]).to eq(:error)
       end
     end
 
-    context "with different weakness types" do
+    context "with strict schema validation" do
       before do
         stub_request(:post, /localhost:11434\/api\/chat/)
           .to_return(
             status: 200,
-            body:   { message: { content: [].to_json } }.to_json,
+            body:   { message: { content: { "questions" => [{ "question" => "Q", "options" => ["A", "B"] }] }.to_json } }.to_json,
             headers: { "Content-Type" => "application/json" }
           )
       end
 
-      it "maps vocabulary weakness to keyword_spotting exercise type" do
-        service = described_class.new(weakness_type: "vocabulary", passage_snippet: snippet)
-        expect(service.instance_variable_get(:@exercise_type)).to eq("keyword_spotting")
-      end
-
-      it "maps trap weakness to main_idea exercise type" do
-        service = described_class.new(weakness_type: "trap", passage_snippet: snippet)
-        expect(service.instance_variable_get(:@exercise_type)).to eq("main_idea")
+      it "rejects malformed questions from the model" do
+        service = described_class.new(
+          task_type: "reading_training",
+          weakness_focus: "matching_heading",
+          cognitive_bias: "distractor_trap",
+          passage_snippet: snippet
+        )
+        result = service.call
+        expect(result[:status]).to eq(:error)
       end
     end
   end

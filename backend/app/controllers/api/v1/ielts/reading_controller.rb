@@ -138,13 +138,18 @@ module Api
         def training_exercises
           profile       = current_user.ielts_weakness_profile
           weakness_type = profile&.weakest_type || "paraphrase"
+          task_type = params[:task_type].presence || "reading_training"
+          weakness_focus = params[:weakness_focus].presence || weakness_type
+          cognitive_bias = params[:cognitive_bias].presence || infer_cognitive_bias(profile)
 
           # Use a recent passage snippet for context, or a generic one
           recent_passage = current_user.ielts_reading_passages.order(created_at: :desc).first
           snippet        = recent_passage&.body&.truncate(1500) || ""
 
           result = Ai::TrainingExerciseService.new(
-            weakness_type:   weakness_type,
+            task_type:       task_type,
+            weakness_focus:  weakness_focus,
+            cognitive_bias:  cognitive_bias,
             passage_snippet: snippet,
             count:           (params[:count] || 3).to_i
           ).call
@@ -152,6 +157,9 @@ module Api
           if result[:status] == :success
             render json: {
               weakness_type: weakness_type,
+              task_type: task_type,
+              weakness_focus: weakness_focus,
+              cognitive_bias: cognitive_bias,
               exercises:     result[:exercises]
             }
           else
@@ -218,6 +226,21 @@ module Api
           when 0.5...0.7 then 10
           when 0.7...0.85 then 15
           else 20
+          end
+        end
+
+        def infer_cognitive_bias(profile)
+          counts = profile&.error_type_counts
+          return "keyword_matching_bias" unless counts.is_a?(Hash) && counts.any?
+
+          # Reason: map historical error categories to the new cognitive-bias taxonomy.
+          counts.max_by { |_key, value| value.to_i }&.first.to_s.then do |top_error|
+            case top_error
+            when "trap" then "distractor_trap"
+            when "paraphrase" then "paraphrase_confusion"
+            when "scanning" then "inference_failure"
+            else "keyword_matching_bias"
+            end
           end
         end
       end

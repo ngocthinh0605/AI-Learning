@@ -113,16 +113,61 @@ This file tracks roadmap execution with clear phases, ownership-ready tasks, and
 ## Bug-Fix Backlog (Next Phase)
 
 ### API/Contract
-- [ ] Normalize response shapes across IELTS modules (`attempts`, `meta`, error schema)
-- [ ] Add stricter server-side validation for malformed AI JSON payloads
-- [ ] Ensure all new endpoints return consistent auth/permission status codes
+- [x] Normalize response shapes across IELTS modules (`attempts`, `meta`, error schema)
+- [x] Add stricter server-side validation for malformed AI JSON payloads
+- [x] Ensure all new endpoints return consistent auth/permission status codes
 
 ### Realtime/Rooms
-- [ ] Prevent duplicate room messages when HTTP + ActionCable events arrive together
-- [ ] Add presence indicators (member online count) for rooms
-- [ ] Add moderation hooks (delete message / remove member) for room owners
+- [x] Prevent duplicate room messages when HTTP + ActionCable events arrive together
+- [x] Add presence indicators (member online count) for rooms
+- [x] Add moderation hooks (delete message / remove member) for room owners
 
 ### Frontend UX/Resilience
-- [ ] Add robust empty/loading/error handling to all IELTS tabs and room views
-- [ ] Add retry actions for transient failures in generate/submit flows
+- [x] Add robust empty/loading/error handling to all IELTS tabs and room views
+- [x] Add retry actions for transient failures in generate/submit flows
 - [ ] Verify mobile scaffold API error handling with real backend responses
+
+## Next Sprint - Daily Learning Plan Engine
+
+### Feature Tasks
+- [x] Add backend daily-plan generation endpoint with strict JSON contract
+- [x] Add validator for strict schema, allowed task types, and duration cap
+- [x] Persist generated plans for analytics/session history
+- [x] Add frontend daily-plan page and API integration
+- [x] Add navigation route for daily plan workflow
+- [x] Upgrade planner to cross-skill intelligence (weakness -> multi-skill mapping with weighted mix)
+- [x] Enforce at least 2 different task types in generated daily plans
+- [x] Add daily-plan UI cross-skill mix preview (generated plan + history cards)
+
+### Testing
+- [x] Backend request tests (expected, edge, failure)
+- [x] Backend validator/service unit tests
+- [x] Frontend API tests
+- [x] Frontend page tests (expected, edge, failure)
+- [x] Hardening: strict schema-level field validation and multi-skill enforcement
+
+## AI Pipeline Foundation Sprints
+
+### Sprint A - Mistake Analysis Prompt (Foundation)
+- [x] Add pipeline endpoint: `POST /api/v1/pipeline/analyze_attempt`
+- [x] Add strict mistake analysis service prompt and JSON contract validator
+- [x] Persist mistake-analysis outcomes into `session_outcomes`
+- [x] Add service/request tests for expected, edge, and failure cases
+
+### Sprint B - Daily Learning Planner (Upgraded Pipeline)
+- [x] Upgrade planner prompt inputs to include `latest_mistake_analysis`
+- [x] Keep backward compatibility for legacy `recent_performance_json` clients
+- [x] Add strict error-code contract (`INVALID_REQUEST`, `DAILY_PLAN_*`)
+- [x] Add cross-skill mapping service and weighted intervention mix logic
+
+### Sprint C - Training Generator (Weakness-Aligned)
+- [x] Upgrade training generator prompt to strict weakness-focused schema
+- [x] Add structured training inputs (`task_type`, `weakness_focus`, `cognitive_bias`)
+- [x] Enforce strict exercise JSON shape (`question`, `options`, `correct_answer`, `explanation`)
+- [x] Update reading training API and frontend to consume strict fields end-to-end
+
+### Sprint D - Improvement Evaluation (Intelligence Layer)
+- [x] Add pipeline endpoint: `POST /api/v1/pipeline/evaluate_improvement`
+- [x] Add strict validator for before/after/delta integrity (`delta = after - before`)
+- [x] Persist improvement evaluations into `session_outcomes`
+- [x] Integrate improvement evaluation into Reading Training results UI

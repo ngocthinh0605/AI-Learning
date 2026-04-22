@@ -1,38 +1,33 @@
 module Ai
-  # Generates micro-exercises tailored to a user's weakness type.
-  #
-  # Exercise types produced:
-  #   keyword_spotting   — find the key word(s) in a sentence
-  #   paraphrase_match   — match a paraphrase to the original sentence
-  #   main_idea          — identify the main idea of a paragraph
-  #   scanning_practice  — locate specific information quickly
-  #
-  # Usage:
-  #   result = Ai::TrainingExerciseService.new(weakness_type: "paraphrase",
-  #                                            passage_snippet: "...").call
-  #   # result: { status: :success, exercises: [...] }
+  # Generates targeted training questions from explicit weakness signals.
   class TrainingExerciseService
     include HTTParty
 
     base_uri ENV.fetch("OLLAMA_BASE_URL") { "http://localhost:11434" }
     MODEL = ENV.fetch("OLLAMA_MODEL") { "gemma2:9b" }
 
-    WEAKNESS_TO_EXERCISE = {
-      "paraphrase"  => "paraphrase_match",
-      "vocabulary"  => "keyword_spotting",
-      "scanning"    => "scanning_practice",
-      "trap"        => "main_idea",
-      "misread"     => "keyword_spotting"
-    }.freeze
+    ALLOWED_TASK_TYPES = %w[
+      reading_training
+      vocab_training
+      inference_training
+      paraphrase_training
+      speaking_practice
+      listening_practice
+    ].freeze
 
-    # @param weakness_type   [String] one of WeaknessAnalysisService::ERROR_TYPES
-    # @param passage_snippet [String] a paragraph or two from a passage
-    # @param count           [Integer] number of exercises to generate (default 3)
-    def initialize(weakness_type:, passage_snippet:, count: 3)
-      @weakness_type   = weakness_type
+    QUESTION_KEYS = %w[question options correct_answer explanation].freeze
+
+    # @param task_type       [String]
+    # @param weakness_focus  [String]
+    # @param cognitive_bias  [String]
+    # @param passage_snippet [String]
+    # @param count           [Integer]
+    def initialize(task_type:, weakness_focus:, cognitive_bias:, passage_snippet:, count: 3)
+      @task_type = ALLOWED_TASK_TYPES.include?(task_type) ? task_type : "reading_training"
+      @weakness_focus = weakness_focus.to_s.presence || "reading accuracy"
+      @cognitive_bias = cognitive_bias.to_s.presence || "keyword_matching_bias"
       @passage_snippet = passage_snippet.to_s.truncate(1500)
       @count           = count.clamp(1, 5)
-      @exercise_type   = WEAKNESS_TO_EXERCISE.fetch(weakness_type, "keyword_spotting")
     end
 
     def call
@@ -68,34 +63,49 @@ module Ai
 
     def system_prompt
       <<~PROMPT.strip
-        You are an IELTS reading skills trainer. Generate focused micro-exercises
-        to help students improve specific reading sub-skills. Always respond with
-        valid JSON only.
+        You are an IELTS training generator.
+        Your task is to create exercises that FIX the user's specific weaknesses.
+
+        INPUT:
+        - Task type
+        - Weakness focus
+        - Cognitive bias
+
+        OBJECTIVE:
+        Create targeted exercises that directly address the weakness.
+
+        RULES:
+        - Include traps if user struggles with traps
+        - Include paraphrasing if user struggles with paraphrase
+        - Avoid generic questions
+
+        OUTPUT (STRICT JSON):
+        {
+          "questions": [
+            {
+              "question": "...",
+              "options": ["A", "B", "C"],
+              "correct_answer": "A",
+              "explanation": "..."
+            }
+          ]
+        }
+
+        Return valid JSON only.
       PROMPT
     end
 
     def user_prompt
       <<~PROMPT.strip
-        Generate #{@count} #{@exercise_type} exercises based on this passage:
+        Task type: #{@task_type}
+        Weakness focus: #{@weakness_focus}
+        Cognitive bias: #{@cognitive_bias}
+        Number of questions: #{@count}
 
+        Passage context (optional):
         #{@passage_snippet}
 
-        Return ONLY a JSON array of exercise objects:
-        [
-          {
-            "type": "#{@exercise_type}",
-            "prompt": "Exercise instruction or question",
-            "options": ["option A", "option B", "option C", "option D"],
-            "answer": "correct option or answer text",
-            "explanation": "Why this is the correct answer"
-          }
-        ]
-
-        Exercise type guidelines:
-        - paraphrase_match: give a sentence from the passage, ask which option means the same
-        - keyword_spotting: give a question, ask which word(s) are the key to finding the answer
-        - scanning_practice: ask where specific information appears in the passage
-        - main_idea: ask what the main idea of a paragraph is
+        Generate targeted exercises only.
       PROMPT
     end
 
@@ -105,12 +115,41 @@ module Ai
         .gsub(/\s*```\z/, "")
         .strip
 
-      exercises = JSON.parse(cleaned)
-      return { status: :error, error: "Invalid exercise format" } unless exercises.is_a?(Array)
+      payload = JSON.parse(cleaned)
+      return { status: :error, error: "Invalid exercise format" } unless payload.is_a?(Hash)
 
-      { status: :success, exercises: exercises }
+      questions = payload["questions"]
+      return { status: :error, error: "Invalid exercise format" } unless questions.is_a?(Array) && questions.any?
+
+      normalized = questions.map.with_index do |question, idx|
+        return { status: :error, error: "Question #{idx + 1} is invalid" } unless valid_question?(question)
+
+        # Reason: keep frontend compatibility while migrating to strict question schema.
+        {
+          "question" => question["question"].to_s,
+          "options" => question["options"],
+          "correct_answer" => question["correct_answer"].to_s,
+          "explanation" => question["explanation"].to_s,
+          "prompt" => question["question"].to_s,
+          "answer" => question["correct_answer"].to_s
+        }
+      end
+
+      { status: :success, exercises: normalized }
     rescue JSON::ParserError => e
       { status: :error, error: "Failed to parse exercises: #{e.message}" }
+    end
+
+    def valid_question?(question)
+      return false unless question.is_a?(Hash)
+      return false unless question.keys.map(&:to_s).sort == QUESTION_KEYS.sort
+      return false if question["question"].to_s.strip.empty?
+      return false if question["correct_answer"].to_s.strip.empty?
+      return false if question["explanation"].to_s.strip.empty?
+
+      options = question["options"]
+      return false unless options.is_a?(Array) && options.length >= 2
+      options.all? { |o| o.is_a?(String) && o.strip.length >= 1 }
     end
   end
 end

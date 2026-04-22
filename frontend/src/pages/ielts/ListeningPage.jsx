@@ -11,15 +11,22 @@ export default function ListeningPage() {
   const [answers, setAnswers] = useState({});
   const [attempt, setAttempt] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function loadHistory() {
+    setHistoryLoading(true);
+    setHistoryError("");
     try {
       const data = await fetchListeningAttempts(1);
       setHistory(data.attempts || []);
-    } catch {
+    } catch (e) {
       setHistory([]);
+      setHistoryError(e?.response?.data?.error || "Failed to load listening history.");
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -130,8 +137,15 @@ export default function ListeningPage() {
       {error && <p className="text-sm text-red-400 mt-4">{error}</p>}
 
       <div className="card mt-6">
-        <h3 className="text-white font-semibold mb-3">Recent Listening Attempts</h3>
-        {history.length === 0 ? (
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-semibold">Recent Listening Attempts</h3>
+          <button onClick={loadHistory} className="btn-ghost text-xs">Retry history</button>
+        </div>
+        {historyLoading ? (
+          <p className="text-sm text-gray-500">Loading history...</p>
+        ) : historyError ? (
+          <p className="text-sm text-red-400">{historyError}</p>
+        ) : history.length === 0 ? (
           <p className="text-sm text-gray-500">No attempts yet.</p>
         ) : (
           <div className="space-y-2">

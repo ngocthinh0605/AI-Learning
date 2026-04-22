@@ -36,6 +36,7 @@ RSpec.describe "Api::V1::Ielts::Writing", type: :request do
         params: { task_type: "task_2", prompt: "Prompt", essay: "   " },
         as: :json
       expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)["error_code"]).to eq("invalid_input")
     end
 
     it "returns 422 when AI grading fails" do
@@ -45,6 +46,26 @@ RSpec.describe "Api::V1::Ielts::Writing", type: :request do
         params: { task_type: "task_1", prompt: "Prompt", essay: "Essay body." },
         as: :json
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)["error_code"]).to eq("writing_grading_failed")
+    end
+
+    it "returns 422 for malformed grading payload" do
+      bad = {
+        "overall_band" => 6.0,
+        "criteria" => {
+          "task_response" => { "score" => 10, "feedback" => "bad score range" },
+          "coherence_cohesion" => { "score" => 6.0, "feedback" => "ok" },
+          "lexical_resource" => { "score" => 6.0, "feedback" => "ok" },
+          "grammar_range_accuracy" => { "score" => 6.0, "feedback" => "ok" }
+        }
+      }
+      allow(Ai::WritingGradingService).to receive(:call).and_return({ status: :success, data: bad })
+      post "/api/v1/ielts/writing/grade",
+        headers: headers,
+        params: { task_type: "task_2", prompt: "Prompt", essay: "Essay body." },
+        as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)["error_code"]).to eq("malformed_ai_payload")
     end
   end
 
@@ -53,7 +74,9 @@ RSpec.describe "Api::V1::Ielts::Writing", type: :request do
       create(:session_outcome, user: user, session_type: "ielts_writing", raw_analysis: { task_type: "task_2", grading: { overall_band: 6.0 } })
       get "/api/v1/ielts/writing/attempts", headers: headers
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body)["attempts"].length).to eq(1)
+      body = JSON.parse(response.body)
+      expect(body["attempts"].length).to eq(1)
+      expect(body["meta"]).to have_key("total_pages")
     end
   end
 end

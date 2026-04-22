@@ -68,4 +68,12 @@ describe("WritingPage", () => {
 
     await waitFor(() => expect(screen.getByText(/llm unavailable/i)).toBeInTheDocument());
   });
+
+  it("shows attempt history error with retry action", async () => {
+    fetchWritingAttempts.mockRejectedValueOnce({ response: { data: { error: "Attempt failed" } } }).mockResolvedValueOnce({ attempts: [] });
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/attempt failed/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /retry attempts/i }));
+    await waitFor(() => expect(fetchWritingAttempts).toHaveBeenCalledTimes(2));
+  });
 });

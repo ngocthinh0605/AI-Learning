@@ -122,6 +122,9 @@ export function subscribeToRoom(roomId, handlers = {}) {
       },
       received(data) {
         if (data.type === "room_message") handlers.onRoomMessage?.(data.message);
+        if (data.type === "room_presence") handlers.onRoomPresence?.(data.online_count);
+        if (data.type === "room_message_deleted") handlers.onRoomMessageDeleted?.(data.message_id);
+        if (data.type === "room_member_removed") handlers.onRoomMemberRemoved?.(data.user_id);
       },
     }
   );

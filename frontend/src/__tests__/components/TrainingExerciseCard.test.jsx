@@ -3,10 +3,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import TrainingExerciseCard from "../../components/ielts/reading/TrainingExerciseCard";
 
 const EXERCISE = {
-  type:        "paraphrase_match",
-  prompt:      "Which sentence means the same as 'Urban farming has grown'?",
+  question:    "Which sentence means the same as 'Urban farming has grown'?",
   options:     ["A. City agriculture expanded", "B. Rural farming declined"],
-  answer:      "A. City agriculture expanded",
+  correct_answer: "A. City agriculture expanded",
   explanation: "'Grown' is paraphrased as 'expanded'.",
 };
 
@@ -21,7 +20,7 @@ describe("TrainingExerciseCard", () => {
       />
     );
 
-    expect(screen.getByText(EXERCISE.prompt)).toBeTruthy();
+    expect(screen.getByText(EXERCISE.question)).toBeTruthy();
     expect(screen.getByText("A. City agriculture expanded")).toBeTruthy();
     expect(screen.getByText("B. Rural farming declined")).toBeTruthy();
   });

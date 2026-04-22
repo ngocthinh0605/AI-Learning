@@ -29,3 +29,13 @@ export async function sendRoomMessage({ roomId, content }) {
   const { data } = await apiClient.post(`/rooms/${roomId}/messages`, { message: { content } });
   return data;
 }
+
+export async function deleteRoomMessage({ roomId, messageId }) {
+  const { data } = await apiClient.delete(`/rooms/${roomId}/messages/${messageId}`);
+  return data;
+}
+
+export async function removeRoomMember({ roomId, userId }) {
+  const { data } = await apiClient.delete(`/rooms/${roomId}/members/${userId}`);
+  return data;
+}

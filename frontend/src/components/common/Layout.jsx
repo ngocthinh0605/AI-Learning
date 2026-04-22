@@ -1,6 +1,6 @@
 import React from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { BookOpen, LayoutDashboard, LogOut, Mic, GraduationCap, MessageCircle, Users } from "lucide-react";
+import { BookOpen, LayoutDashboard, LogOut, Mic, GraduationCap, MessageCircle, Users, CalendarCheck } from "lucide-react";
 import { useAuthStore } from "../../stores/useAuthStore";
 import toast from "react-hot-toast";
 
@@ -18,6 +18,7 @@ export default function Layout() {
     { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { to: "/vocabulary", label: "Vocabulary", Icon: BookOpen },
     { to: "/rooms", label: "Rooms", Icon: Users },
+    { to: "/daily-plan", label: "Daily Plan", Icon: CalendarCheck },
     { to: "/ielts", label: "IELTS", Icon: GraduationCap },
     { to: "/ai-chat", label: "AI Chat", Icon: MessageCircle },
   ];

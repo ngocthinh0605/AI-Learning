@@ -7,6 +7,7 @@ import {
   fetchAttemptReview,
   fetchWeaknessProfile,
   fetchTrainingExercises,
+  evaluateTrainingImprovement,
 } from "../../api/readingApi";
 
 describe("readingApi", () => {
@@ -101,13 +102,27 @@ describe("readingApi", () => {
       expect(Array.isArray(data.exercises)).toBe(true);
     });
 
-    it("exercises include type, prompt, options, and answer", async () => {
+    it("exercises include question, options, and correct_answer", async () => {
       const data = await fetchTrainingExercises();
       const ex   = data.exercises[0];
-      expect(ex).toHaveProperty("type");
-      expect(ex).toHaveProperty("prompt");
+      expect(ex).toHaveProperty("question");
       expect(ex).toHaveProperty("options");
-      expect(ex).toHaveProperty("answer");
+      expect(ex).toHaveProperty("correct_answer");
+    });
+  });
+
+  describe("evaluateTrainingImprovement", () => {
+    it("returns before/after improvement object with insight", async () => {
+      const data = await evaluateTrainingImprovement({
+        previousAttemptData: { accuracy: 0.4 },
+        trainingSessionResults: { accuracy: 0.67, score: 2, total_exercises: 3 },
+      });
+      expect(data).toHaveProperty("improvement");
+      expect(data.improvement).toHaveProperty("before");
+      expect(data.improvement).toHaveProperty("after");
+      expect(data.improvement).toHaveProperty("delta");
+      expect(data).toHaveProperty("insight");
+      expect(data).toHaveProperty("next_focus");
     });
   });
 });

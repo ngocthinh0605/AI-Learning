@@ -70,4 +70,12 @@ describe("ListeningPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /generate listening set/i }));
     await waitFor(() => expect(screen.getByText(/service unavailable/i)).toBeInTheDocument());
   });
+
+  it("shows history error with retry action", async () => {
+    fetchListeningAttempts.mockRejectedValueOnce({ response: { data: { error: "History failed" } } }).mockResolvedValueOnce({ attempts: [] });
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/history failed/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /retry history/i }));
+    await waitFor(() => expect(fetchListeningAttempts).toHaveBeenCalledTimes(2));
+  });
 });

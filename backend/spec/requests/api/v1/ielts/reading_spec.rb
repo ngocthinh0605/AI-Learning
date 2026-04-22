@@ -237,8 +237,9 @@ RSpec.describe "Api::V1::Ielts::Reading", type: :request do
         .and_return({
           status:    :success,
           exercises: [
-            { "type" => "paraphrase_match", "prompt" => "Which means the same?",
-              "options" => ["A", "B"], "answer" => "A", "explanation" => "..." }
+            { "question" => "Which means the same?",
+              "options" => ["A", "B"], "correct_answer" => "A", "explanation" => "...",
+              "prompt" => "Which means the same?", "answer" => "A" }
           ]
         })
     end
@@ -249,6 +250,23 @@ RSpec.describe "Api::V1::Ielts::Reading", type: :request do
       body = JSON.parse(response.body)
       expect(body).to have_key("weakness_type")
       expect(body["exercises"]).to be_an(Array)
+      expect(body["exercises"][0]).to have_key("correct_answer")
+    end
+
+    it "accepts explicit weakness-aligned input parameters" do
+      get "/api/v1/ielts/reading/training",
+        headers: headers,
+        params: {
+          task_type: "reading_training",
+          weakness_focus: "matching_heading",
+          cognitive_bias: "distractor_trap"
+        }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["task_type"]).to eq("reading_training")
+      expect(body["weakness_focus"]).to eq("matching_heading")
+      expect(body["cognitive_bias"]).to eq("distractor_trap")
     end
 
     it "returns 401 when unauthenticated" do

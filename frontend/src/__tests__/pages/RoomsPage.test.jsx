@@ -8,6 +8,8 @@ const createRoom = vi.fn();
 const joinRoom = vi.fn();
 const fetchRoom = vi.fn();
 const sendRoomMessage = vi.fn();
+const deleteRoomMessage = vi.fn();
+const removeRoomMember = vi.fn();
 
 vi.mock("../../api/roomsApi", () => ({
   fetchRooms: (...args) => fetchRooms(...args),
@@ -15,10 +17,16 @@ vi.mock("../../api/roomsApi", () => ({
   joinRoom: (...args) => joinRoom(...args),
   fetchRoom: (...args) => fetchRoom(...args),
   sendRoomMessage: (...args) => sendRoomMessage(...args),
+  deleteRoomMessage: (...args) => deleteRoomMessage(...args),
+  removeRoomMember: (...args) => removeRoomMember(...args),
 }));
 
 vi.mock("../../api/cableApi", () => ({
   subscribeToRoom: () => ({ unsubscribe: vi.fn() }),
+}));
+
+vi.mock("../../stores/useAuthStore", () => ({
+  useAuthStore: () => ({ user: { id: "u-owner" } }),
 }));
 
 function renderPage() {
@@ -38,8 +46,10 @@ describe("RoomsPage", () => {
     joinRoom.mockReset();
     fetchRoom.mockReset();
     sendRoomMessage.mockReset();
+    deleteRoomMessage.mockReset();
+    removeRoomMember.mockReset();
     fetchRooms.mockResolvedValue([{ id: "r1", name: "IELTS Club", member_count: 1 }]);
-    fetchRoom.mockResolvedValue({ messages: [] });
+    fetchRoom.mockResolvedValue({ room: { id: "r1", owner_id: "u-owner" }, messages: [] });
   });
 
   it("loads rooms and allows creating one", async () => {
@@ -60,5 +70,13 @@ describe("RoomsPage", () => {
     fireEvent.change(screen.getByPlaceholderText(/send message to room/i), { target: { value: "Hello" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => expect(sendRoomMessage).toHaveBeenCalled());
+  });
+
+  it("shows retry rooms action on rooms load failure", async () => {
+    fetchRooms.mockRejectedValueOnce(new Error("load failed")).mockResolvedValueOnce([{ id: "r1", name: "IELTS Club", member_count: 1 }]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText(/failed to load rooms/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /retry rooms/i }));
+    await waitFor(() => expect(fetchRooms).toHaveBeenCalledTimes(2));
   });
 });
