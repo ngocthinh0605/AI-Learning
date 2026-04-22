@@ -5,6 +5,8 @@ ruby "3.2.2"
 
 gem "rails", "~> 7.1.0"
 gem "pg", "~> 1.1"
+# pgvector: vector similarity search in PostgreSQL (neighbor wraps pgvector for Rails)
+gem "neighbor"
 gem "puma", "~> 6.0"
 gem "rack-cors"
 

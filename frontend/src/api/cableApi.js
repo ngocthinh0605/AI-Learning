@@ -107,3 +107,22 @@ export function subscribeToConversation(conversationId, handlers = {}) {
     }
   );
 }
+
+export function subscribeToRoom(roomId, handlers = {}) {
+  const cable = getConsumer();
+
+  return cable.subscriptions.create(
+    { channel: "RoomChannel", room_id: roomId },
+    {
+      connected() {
+        handlers.onSubscribed?.();
+      },
+      disconnected() {
+        handlers.onDisconnected?.();
+      },
+      received(data) {
+        if (data.type === "room_message") handlers.onRoomMessage?.(data.message);
+      },
+    }
+  );
+}

@@ -58,6 +58,20 @@ RSpec.describe Ai::GemmaStreamingService do
       end
     end
 
+    context "with a custom Ollama model tag" do
+      let(:service) { described_class.new("Hi", [], model: "custom:tag") }
+
+      it "sends the model in the JSON payload" do
+        stub_request(:post, /localhost:11434\/api\/chat/)
+          .with(body: /"model":"custom:tag"/)
+          .to_return(status: 200, body: "#{({ message: { content: "OK" }, done: true }).to_json}\n")
+
+        tokens = []
+        service.stream { |t| tokens << t }
+        expect(tokens).to eq(["OK"])
+      end
+    end
+
     context "with malformed JSON lines" do
       it "skips invalid lines and continues" do
         ndjson = "not-json\n" \

@@ -6,14 +6,19 @@ module Ai
   #   Ai::GemmaStreamingService.new(text, history, english_level: "B1").stream do |token|
   #     ActionCable.server.broadcast(stream_name, { token: token })
   #   end
+  #
+  # Optional +model:+ overrides the default Ollama tag (e.g. sidebar quick-chat).
+  # Optional +assistant_mode:+ :sidebar_qa uses a shorter system prompt for Q&A.
   class GemmaStreamingService
     OLLAMA_BASE_URL = ENV.fetch("OLLAMA_BASE_URL") { "http://localhost:11434" }
     MODEL = ENV.fetch("OLLAMA_MODEL") { "gemma2:9b" }
 
-    def initialize(user_message, history = [], english_level: "B1")
+    def initialize(user_message, history = [], english_level: "B1", model: nil, assistant_mode: :tutor)
       @user_message = user_message
       @conversation_history = history
       @english_level = english_level
+      @ollama_model = model
+      @assistant_mode = assistant_mode
     end
 
     # Opens a persistent HTTP connection to Ollama and yields tokens as they arrive.
@@ -56,7 +61,7 @@ module Ai
       messages << { role: "user", content: @user_message }
 
       # stream: true — Ollama sends one JSON line per token instead of waiting for full response
-      { model: MODEL, messages: messages, stream: true }
+      { model: (@ollama_model.presence || MODEL), messages: messages, stream: true }
     end
 
     # Each streamed line is a JSON object like:
@@ -71,6 +76,8 @@ module Ai
     end
 
     def system_prompt
+      return sidebar_qa_prompt if @assistant_mode == :sidebar_qa
+
       <<~PROMPT.strip
         You are a professional English Language Tutor named "Aria". Your goals are to:
         1. Hold natural, engaging conversations in English.
@@ -83,6 +90,13 @@ module Ai
         After your main response, append only when relevant:
         [CORRECTION]: <brief correction note>
         [VOCABULARY]: <word> | <definition> | <example sentence>
+      PROMPT
+    end
+
+    def sidebar_qa_prompt
+      <<~PROMPT.strip
+        You are a concise English-learning assistant. Answer the student's questions clearly.
+        Adapt explanations to CEFR level #{@english_level}. Prefer short paragraphs unless they ask for detail.
       PROMPT
     end
   end

@@ -1,6 +1,6 @@
 import React from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { BookOpen, LayoutDashboard, LogOut, Mic, GraduationCap } from "lucide-react";
+import { BookOpen, LayoutDashboard, LogOut, Mic, GraduationCap, MessageCircle, Users } from "lucide-react";
 import { useAuthStore } from "../../stores/useAuthStore";
 import toast from "react-hot-toast";
 
@@ -15,9 +15,11 @@ export default function Layout() {
   }
 
   const navItems = [
-    { to: "/dashboard", label: "Dashboard",  Icon: LayoutDashboard },
+    { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { to: "/vocabulary", label: "Vocabulary", Icon: BookOpen },
-    { to: "/ielts",      label: "IELTS",      Icon: GraduationCap },
+    { to: "/rooms", label: "Rooms", Icon: Users },
+    { to: "/ielts", label: "IELTS", Icon: GraduationCap },
+    { to: "/ai-chat", label: "AI Chat", Icon: MessageCircle },
   ];
 
   return (
@@ -34,7 +36,6 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map(({ to, label, Icon }) => (
             <NavLink
@@ -67,8 +68,8 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      {/* Main content — flex column so full-page views (e.g. AI Chat) can fill height */}
+      <main className="flex-1 flex flex-col min-h-0 overflow-auto">
         <Outlet />
       </main>
     </div>

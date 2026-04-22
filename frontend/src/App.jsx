@@ -7,9 +7,14 @@ import DashboardPage from "./pages/DashboardPage";
 import ConversationPage from "./pages/ConversationPage";
 import VocabularyPage from "./pages/VocabularyPage";
 import ReviewSessionPage from "./pages/ReviewSessionPage";
+import RoomsPage from "./pages/RoomsPage";
 import IELTSPage from "./pages/IELTSPage";
 import ReadingPage from "./pages/ielts/ReadingPage";
+import ListeningPage from "./pages/ielts/ListeningPage";
+import WritingPage from "./pages/ielts/WritingPage";
 import ReviewPage from "./pages/ielts/ReviewPage";
+import SpeakingPage from "./pages/ielts/SpeakingPage";
+import AIChatPage from "./pages/AIChatPage";
 import Layout from "./components/common/Layout";
 
 function ProtectedRoute({ children }) {
@@ -65,9 +70,14 @@ export default function App() {
         <Route path="conversations/:id" element={<ConversationPage />} />
         <Route path="vocabulary" element={<VocabularyPage />} />
         <Route path="vocabulary/review" element={<ReviewSessionPage />} />
+        <Route path="rooms" element={<RoomsPage />} />
         <Route path="ielts" element={<IELTSPage />} />
         <Route path="ielts/reading" element={<ReadingPage />} />
+        <Route path="ielts/listening" element={<ListeningPage />} />
+        <Route path="ielts/writing" element={<WritingPage />} />
+        <Route path="ielts/speaking" element={<SpeakingPage />} />
         <Route path="ielts/reading/attempts/:id/review" element={<ReviewPage />} />
+        <Route path="ai-chat" element={<AIChatPage />} />
       </Route>
     </Routes>
   );

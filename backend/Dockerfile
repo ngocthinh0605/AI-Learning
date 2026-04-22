@@ -9,7 +9,9 @@ RUN apt-get update -qq && apt-get install -y \
 
 WORKDIR /app
 
-COPY Gemfile ./
+# Reason: install exactly what Gemfile.lock pins. Copying only Gemfile made the image
+# disagree with the mounted repo's lockfile → Bundler::GemNotFound at runtime.
+COPY Gemfile Gemfile.lock ./
 RUN bundle install --jobs 4 --retry 3
 
 COPY . .

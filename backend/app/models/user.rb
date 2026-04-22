@@ -12,6 +12,12 @@ class User < ApplicationRecord
   has_many :ielts_reading_attempts,  dependent: :destroy
   has_many :ielts_user_answers,      dependent: :destroy
   has_one  :ielts_weakness_profile,  dependent: :destroy
+  has_one  :learning_profile,        dependent: :destroy
+  has_many :session_outcomes,        dependent: :destroy
+  has_many :owned_rooms, class_name: "Room", foreign_key: :owner_id, dependent: :destroy
+  has_many :room_memberships, dependent: :destroy
+  has_many :rooms, through: :room_memberships
+  has_many :room_messages, dependent: :destroy
 
   ENGLISH_LEVELS = %w[A1 A2 B1 B2 C1 C2].freeze
 

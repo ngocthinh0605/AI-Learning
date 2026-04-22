@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_14_000006) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_22_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+  enable_extension "vector"
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "user_id", null: false
@@ -23,6 +24,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_14_000006) do
     t.datetime "updated_at", null: false
     t.index ["user_id", "created_at"], name: "index_conversations_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_conversations_on_user_id"
+  end
+
+  create_table "grammar_mistakes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "learning_profile_id", null: false
+    t.string "category", null: false
+    t.string "subcategory", default: "", null: false
+    t.text "example_snippet"
+    t.integer "occurrence_count", default: 0, null: false
+    t.datetime "last_seen_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["learning_profile_id", "category", "subcategory"], name: "index_grammar_mistakes_unique", unique: true
   end
 
   create_table "ielts_reading_attempts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -95,6 +108,54 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_14_000006) do
     t.index ["jti"], name: "index_jwt_denylist_on_jti", unique: true
   end
 
+  create_table "kb_chunks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "kb_document_id", null: false
+    t.integer "chunk_index", default: 0, null: false
+    t.text "content", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.vector "embedding", limit: 768
+    t.index ["kb_document_id", "chunk_index"], name: "index_kb_chunks_on_kb_document_id_and_chunk_index"
+  end
+
+  create_table "kb_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "kind", null: false
+    t.string "title"
+    t.text "body"
+    t.string "source"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["kind"], name: "index_kb_documents_on_kind"
+  end
+
+  create_table "learning_profile_reading_weaknesses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "learning_profile_id", null: false
+    t.string "question_type", null: false
+    t.decimal "error_rate", precision: 5, scale: 4, default: "0.0", null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "last_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["learning_profile_id", "question_type"], name: "index_lprw_profile_qtype", unique: true
+  end
+
+  create_table "learning_profiles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.decimal "ielts_band_estimate", precision: 3, scale: 1
+    t.decimal "band_confidence", precision: 3, scale: 2
+    t.decimal "speaking_fluency", precision: 3, scale: 1
+    t.decimal "speaking_grammar", precision: 3, scale: 1
+    t.decimal "speaking_pronunciation", precision: 3, scale: 1
+    t.datetime "last_session_at"
+    t.integer "profile_version", default: 1, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_learning_profiles_on_user_id", unique: true
+  end
+
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "conversation_id", null: false
     t.string "role", null: false
@@ -106,6 +167,43 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_14_000006) do
     t.index ["conversation_id", "created_at"], name: "index_messages_on_conversation_id_and_created_at"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["role"], name: "index_messages_on_role"
+  end
+
+  create_table "room_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "room_id", null: false
+    t.uuid "user_id", null: false
+    t.string "role", default: "member", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["room_id", "user_id"], name: "index_room_memberships_on_room_id_and_user_id", unique: true
+  end
+
+  create_table "room_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "room_id", null: false
+    t.uuid "user_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["room_id", "created_at"], name: "index_room_messages_on_room_id_and_created_at"
+  end
+
+  create_table "rooms", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.uuid "owner_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_rooms_on_name"
+  end
+
+  create_table "session_outcomes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.string "session_type", null: false
+    t.jsonb "raw_analysis", default: {}, null: false
+    t.decimal "band_delta_hint", precision: 3, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "created_at"], name: "index_session_outcomes_on_user_id_and_created_at"
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -123,6 +221,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_14_000006) do
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+  end
+
+  create_table "vocabulary_weaknesses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "learning_profile_id", null: false
+    t.string "lemma_or_concept", null: false
+    t.string "topic_tag"
+    t.integer "miss_count", default: 0, null: false
+    t.datetime "last_seen_at"
+    t.float "severity_score", default: 0.0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["learning_profile_id", "lemma_or_concept"], name: "index_vocab_weak_on_profile_and_lemma", unique: true
   end
 
   create_table "vocabulary_words", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -146,12 +256,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_14_000006) do
   end
 
   add_foreign_key "conversations", "users"
+  add_foreign_key "grammar_mistakes", "learning_profiles"
   add_foreign_key "ielts_reading_attempts", "ielts_reading_passages"
   add_foreign_key "ielts_reading_attempts", "users"
   add_foreign_key "ielts_reading_passages", "users"
   add_foreign_key "ielts_user_answers", "ielts_reading_attempts"
   add_foreign_key "ielts_user_answers", "users"
   add_foreign_key "ielts_weakness_profiles", "users"
+  add_foreign_key "kb_chunks", "kb_documents"
+  add_foreign_key "learning_profile_reading_weaknesses", "learning_profiles"
+  add_foreign_key "learning_profiles", "users"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "room_memberships", "rooms"
+  add_foreign_key "room_memberships", "users"
+  add_foreign_key "room_messages", "rooms"
+  add_foreign_key "room_messages", "users"
+  add_foreign_key "rooms", "users", column: "owner_id"
+  add_foreign_key "session_outcomes", "users"
+  add_foreign_key "vocabulary_weaknesses", "learning_profiles"
   add_foreign_key "vocabulary_words", "users"
 end

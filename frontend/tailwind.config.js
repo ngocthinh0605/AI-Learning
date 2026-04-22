@@ -22,8 +22,14 @@ export default {
         "pulse-ring": "pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite",
         "fade-in": "fade-in 0.3s ease-out",
         "slide-up": "slide-up 0.3s ease-out",
+        // Staggered dot bounce for chat “typing…” state
+        "typing-dot": "typing-dot 1.05s ease-in-out infinite",
       },
       keyframes: {
+        "typing-dot": {
+          "0%, 100%": { opacity: "0.35", transform: "translateY(0)" },
+          "50%": { opacity: "1", transform: "translateY(-5px)" },
+        },
         "pulse-ring": {
           "0%": { transform: "scale(0.95)", boxShadow: "0 0 0 0 rgba(139, 92, 246, 0.7)" },
           "70%": { transform: "scale(1)", boxShadow: "0 0 0 10px rgba(139, 92, 246, 0)" },

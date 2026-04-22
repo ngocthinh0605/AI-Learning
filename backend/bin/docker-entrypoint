@@ -1,7 +1,13 @@
 #!/bin/bash
 set -e
 
-# Create databases directly via psql â€” bypasses Rails environment loading
+# When ./backend is mounted, Gemfile.lock may differ from gems baked into the image.
+# Reason: avoids Bundler::GemNotFound until the next image rebuild.
+if ! bundle check >/dev/null 2>&1; then
+  bundle install --jobs 4 --retry 3
+fi
+
+# Create databases directly via psql — bypasses Rails environment loading
 # which triggers the devise/routes circular dependency during db:create
 export PGPASSWORD="$DB_PASSWORD"
 
@@ -10,7 +16,7 @@ for DB in speaking_ai_development speaking_ai_test; do
     psql -h "$DB_HOST" -U "$DB_USERNAME" -c "CREATE DATABASE $DB"
 done
 
-# Now run migrations (safe â€” app is fully initialized at this point)
+# Now run migrations (safe — app is fully initialized at this point)
 bundle exec rails db:migrate
 
 # Remove stale PID file left by a previous container run.

@@ -15,6 +15,7 @@ The Rails API backend powers all business logic, database access, AI service int
 - [Authentication](#authentication)
 - [Real-time (ActionCable)](#real-time-actioncable)
 - [Configuration](#configuration)
+- [Docker image & Bundler](#docker-image--bundler)
 - [Running Locally (without Docker)](#running-locally-without-docker)
 - [Migrations](#migrations)
 - [Testing](#testing)
@@ -24,7 +25,8 @@ The Rails API backend powers all business logic, database access, AI service int
 ## Overview
 
 - **Framework:** Ruby on Rails 7.1 (API mode — no views, no asset pipeline)
-- **Database:** PostgreSQL 16 with UUID primary keys
+- **Database:** PostgreSQL 16 with UUID primary keys; **`vector`** extension (pgvector) for RAG embeddings
+- **Gems:** `neighbor` for pgvector-backed similarity on `KbChunk`
 - **Auth:** Devise + devise-jwt (stateless JWT, tokens stored on the client)
 - **AI:** HTTParty calls to Ollama (local LLM) and Whisper (local STT)
 - **Real-time:** ActionCable over Redis for streaming AI responses
@@ -37,7 +39,7 @@ The Rails API backend powers all business logic, database access, AI service int
 ```
 backend/
 │
-├── Dockerfile                  # Ruby 3.2.2-slim image, installs gems, copies code
+├── Dockerfile                  # Copies Gemfile + Gemfile.lock, bundle install, then app
 ├── Gemfile                     # Ruby dependencies
 ├── Gemfile.lock                # Locked dependency versions
 ├── Rakefile                    # Rails task runner
@@ -45,7 +47,7 @@ backend/
 ├── .env.example                # Environment variable template for local dev
 │
 ├── bin/
-│   ├── docker-entrypoint       # Container startup: create DBs → migrate → start server
+│   ├── docker-entrypoint       # bundle check/install → create DBs → migrate → server
 │   ├── rails                   # Rails CLI
 │   ├── rake                    # Rake CLI
 │   ├── bundle                  # Bundler CLI
@@ -104,6 +106,16 @@ backend/
 │       ├── weakness_analysis_service.rb   # Classify wrong answers by error type
 │       ├── training_exercise_service.rb   # Generate micro-exercises
 │       └── similar_question_service.rb    # Generate similar questions for review
+│       ├── llm_json_completion.rb         # Ollama JSON-only completions
+│       ├── embedding_service.rb           # Ollama /api/embeddings
+│       ├── retrieval_service.rb           # pgvector nearest-neighbor search
+│       ├── knowledge_ingest_service.rb    # Chunk + embed KB documents
+│       ├── rag_prompt_builder.rb          # Format RAG context for prompts
+│       ├── speaking_feedback_service.rb   # IELTS-style transcript analysis JSON
+│       ├── adaptive_content_generator_service.rb
+│       ├── analytics_insight_service.rb
+│       ├── tutor_structured_chat_service.rb
+│       └── reading_attempt_profile_builder.rb  # Build session JSON from reading submit
 │
 ├── config/
 │   ├── routes.rb               # All API routes
@@ -169,7 +181,7 @@ Central model. Owns all other resources.
 | `streak_days` | integer | Consecutive practice days |
 | `last_practice_date` | date | For streak calculation |
 
-**Associations:** `has_many conversations`, `has_many vocabulary_words`, `has_many ielts_reading_passages`, `has_many ielts_reading_attempts`, `has_many ielts_user_answers`, `has_one ielts_weakness_profile`
+**Associations:** `has_many conversations`, `has_many vocabulary_words`, `has_many ielts_reading_passages`, `has_many ielts_reading_attempts`, `has_many ielts_user_answers`, `has_one ielts_weakness_profile`, `has_one learning_profile`, `has_many session_outcomes`
 
 ### `Conversation` + `Message`
 A `Conversation` is a chat session with a topic and difficulty. `Message` rows store each turn with `role` (user/assistant) and `content`. Messages also store `pronunciation_score` and `transcript_error` from Whisper.
@@ -265,6 +277,17 @@ GET    /api/v1/ielts/reading/attempts/:id
 GET    /api/v1/ielts/reading/attempts/:id/review
 GET    /api/v1/ielts/reading/weakness
 GET    /api/v1/ielts/reading/training
+
+POST   /api/v1/sidebar_chat
+
+GET    /api/v1/learning_profile
+POST   /api/v1/session_outcomes
+POST   /api/v1/speaking_feedback
+POST   /api/v1/rag/retrieve
+POST   /api/v1/rag/ingest
+POST   /api/v1/adaptive_content
+POST   /api/v1/learning_insights
+POST   /api/v1/tutor_chat
 ```
 
 ### `ApplicationController`
@@ -326,6 +349,13 @@ Given a weakness type + passage snippet, generates micro-exercises:
 ### `Ai::SimilarQuestionService`
 Given wrong questions + passage, generates new questions of the same type testing the same skill. Used in Review Mode.
 
+### Learning profile & RAG (summary)
+
+- **`LearningProfileUpsertService`** — merges session `raw_analysis` JSON into `learning_profiles` and related weakness tables; optionally logs `session_outcomes`.
+- **`Ai::ReadingAttemptProfileBuilder`** — builds analysis payload after an IELTS reading submit; wired from `ReadingController#submit`.
+- **`Ai::LlmJsonCompletion`** — single-turn Ollama chat expecting JSON output (speaking feedback, adaptive content, insights, tutor structured replies).
+- **`Ai::EmbeddingService` / `Ai::RetrievalService` / `Ai::KnowledgeIngestService`** — embeddings via Ollama, similarity search with `neighbor`, ingest for `kb_documents` / `kb_chunks`.
+
 ---
 
 ## Serializers
@@ -357,6 +387,15 @@ Uses **Devise + devise-jwt**:
 5. Final `{ type: "done" }` message signals completion
 
 Redis is used as the ActionCable pub/sub adapter (configured in `config/cable.yml`).
+
+---
+
+## Docker image & Bundler
+
+- The **Dockerfile** copies **`Gemfile` and `Gemfile.lock`** before `bundle install` so the image matches the lockfile (avoids `Bundler::GemNotFound` when `/app` is bind-mounted).
+- **`bin/docker-entrypoint`** runs **`bundle check`** and **`bundle install`** if gems are missing (e.g. lockfile updated on the host without rebuilding).
+- Rebuild after dependency changes: `docker compose build --no-cache backend`.
+- Use **PostgreSQL with pgvector** in Compose (`pgvector/pgvector:pg16`); local dev needs the `vector` extension for migrations that add `kb_chunks.embedding`.
 
 ---
 
@@ -399,18 +438,20 @@ Requirements: Ruby 3.2.2, PostgreSQL 16, Redis 7
 
 ## Migrations
 
+Requires PostgreSQL with the **`vector`** extension (pgvector) for newer migrations.
+
 ```bash
 # Run pending migrations (Docker)
-docker compose exec backend bin/rails db:migrate
+docker compose exec backend bundle exec rails db:migrate
 
 # Check migration status
-docker compose exec backend bin/rails db:migrate:status
+docker compose exec backend bundle exec rails db:migrate:status
 
 # Rollback last migration
-docker compose exec backend bin/rails db:rollback
+docker compose exec backend bundle exec rails db:rollback
 
 # Reset database (destroys all data)
-docker compose exec backend bin/rails db:drop db:create db:migrate
+docker compose exec backend bundle exec rails db:drop db:create db:migrate
 ```
 
 ---

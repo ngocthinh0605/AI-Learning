@@ -60,6 +60,13 @@ module Api
 
             persist_user_answers!(attempt, @passage.questions, answers, result)
             IeltsWeaknessProfile.upsert_for_user!(current_user)
+            raw_profile = Ai::ReadingAttemptProfileBuilder.build(attempt, result)
+            LearningProfileUpsertService.call(
+              user: current_user,
+              raw_analysis: raw_profile,
+              session_type: "ielts_reading",
+              persist_session: true
+            )
             current_user.increment!(:xp_points, xp_for_score(result[:score], result[:total]))
 
             render json: attempt, serializer: IeltsReadingAttemptSerializer, status: :created

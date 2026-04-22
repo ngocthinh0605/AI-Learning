@@ -11,6 +11,7 @@ A full-stack English learning platform that uses local AI (Ollama/Gemma) and spe
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Quick Start (Docker)](#quick-start-docker)
+- [Docker Backend (Bundler and PostgreSQL)](#docker-backend-bundler-and-postgresql)
 - [Environment Variables](#environment-variables)
 - [Services & Ports](#services--ports)
 - [Features](#features)
@@ -77,7 +78,8 @@ All AI processing runs **locally** on your machine via Ollama — no OpenAI API 
 | Technology             | Version | Purpose                          |
 | ---------------------- | ------- | -------------------------------- |
 | Ruby on Rails          | 7.1     | API framework (API mode)         |
-| PostgreSQL             | 16      | Primary database                 |
+| PostgreSQL + pgvector  | 16      | Primary database + `vector` extension (RAG) |
+| neighbor               | latest  | pgvector helpers in Rails        |
 | Redis                  | 7       | ActionCable pub/sub adapter      |
 | Devise + devise-jwt    | latest  | Authentication + JWT tokens      |
 | ActiveModelSerializers | 0.10    | JSON serialization               |
@@ -106,6 +108,7 @@ All AI processing runs **locally** on your machine via Ollama — no OpenAI API 
 | -------------- | ----------------------------------------------------------- |
 | Ollama         | Local LLM runtime                                           |
 | Gemma2:9b      | Language model (conversation, passage generation, feedback) |
+| nomic-embed-text (optional) | Local embeddings for RAG (`ollama pull nomic-embed-text`) |
 | OpenAI Whisper | Speech-to-text transcription                                |
 
 ### Infrastructure
@@ -142,13 +145,17 @@ LearningEnglishProject/
 - NVIDIA GPU + up-to-date NVIDIA driver (recommended for `gemma2:9b`)
 - At least 16 GB system RAM (recommended when using AI + Docker together)
 
-### 1. Start Ollama and pull the AI model
+### 1. Start Ollama and pull models
 
 ```bash
 ollama pull gemma2:9b
+# Optional — used for RAG / knowledge-base similarity (Learning Profile + `kb_chunks`)
+ollama pull nomic-embed-text
 ```
 
-> Smaller alternative: `ollama pull gemma2:2b` (faster, less accurate). Set `OLLAMA_MODEL=gemma2:2b` in `.env`.
+> Smaller chat alternative: `ollama pull gemma2:2b` (faster, less accurate). Set `OLLAMA_MODEL=gemma2:2b` in `.env`.
+
+The database container uses **`pgvector/pgvector:pg16`** so migrations can enable the `vector` extension (embeddings). If you switch from plain `postgres` and hit extension errors, reset the DB volume once (see [Docker Backend](#docker-backend-bundler-and-postgresql)).
 
 Quick verification:
 
@@ -172,15 +179,18 @@ DB_PASSWORD=choose_a_strong_password
 DEVISE_JWT_SECRET_KEY=<run: ruby -e "require 'securerandom'; puts SecureRandom.hex(64)">
 ```
 
-### 3. Start all project services
+### 3. Build and start all project services
+
+After changing `Gemfile` or `Gemfile.lock`, rebuild the backend image so installed gems match the lockfile:
 
 ```bash
+docker compose build --no-cache backend
 docker compose up -d
 ```
 
 This starts 5 containers:
 
-- `db` — PostgreSQL (auto-creates databases + runs migrations)
+- `db` — PostgreSQL **with pgvector** (auto-creates databases; migrations run in the backend entrypoint)
 - `redis` — Redis for WebSocket pub/sub
 - `backend` — Rails API with hot reload
 - `whisper` — Python STT microservice
@@ -225,20 +235,26 @@ Register a new account and start learning!
 ### Useful commands
 
 ```bash
+# Rebuild backend after Gemfile / Gemfile.lock changes (recommended)
+docker compose build --no-cache backend
+
 # View logs from all services
 docker compose logs -f
 
 # View logs from a specific service
 docker compose logs -f backend
 
+# Install gems inside the running container (if lockfile changed without rebuild)
+docker compose exec backend bundle install
+
 # Run Rails migrations manually
-docker compose exec backend bin/rails db:migrate
+docker compose exec backend bundle exec rails db:migrate
 
 # Open a Rails console
-docker compose exec backend bin/rails console
+docker compose exec backend bundle exec rails console
 
-# Run backend tests
-docker compose run --rm backend bundle exec rspec
+# Run backend tests (override entrypoint so Rails is not started)
+docker compose run --rm --entrypoint "" backend bundle exec rspec
 
 # Run frontend tests
 docker compose run --rm frontend yarn test
@@ -258,19 +274,55 @@ docker compose down -v
 
 ---
 
+## Docker Backend (Bundler and PostgreSQL)
+
+### Why `Bundler::GemNotFound` happens
+
+The backend image runs **`bundle install`** from **`Gemfile` + `Gemfile.lock`** at build time. The repo is also **mounted** into `/app`. If the lockfile on disk asks for different gem versions than what was baked into an old image, Bundler errors until you:
+
+1. **Rebuild:** `docker compose build --no-cache backend` then `docker compose up -d`, or  
+2. **Install in the container:** `docker compose exec backend bundle install`  
+3. Rely on **`bin/docker-entrypoint`**, which runs **`bundle check`** and **`bundle install`** when gems are missing.
+
+Always commit an up-to-date **`backend/Gemfile.lock`** after changing `Gemfile`.
+
+### PostgreSQL + pgvector
+
+Compose uses **`pgvector/pgvector:pg16`**. Migrations run `CREATE EXTENSION vector` for embedding columns (`kb_chunks.embedding`). If you previously used plain PostgreSQL and see extension errors, remove the old volume (this **deletes local DB data**):
+
+```bash
+docker compose down
+docker volume rm learningenglishproject_postgres_data   # prefix may match your project folder name
+docker compose up -d
+```
+
+### One-off Rails commands
+
+The container **entrypoint** creates databases, migrates, and starts the server. For commands like **`bundle lock`** or **`rspec`**, override the entrypoint:
+
+```bash
+docker compose run --rm --no-deps --entrypoint /usr/local/bin/bundle backend lock
+docker compose run --rm --entrypoint "" backend bundle exec rspec
+```
+
+---
+
 ## Environment Variables
 
 ### Root `.env` (used by docker-compose)
 
-| Variable                | Default                             | Description                                                 |
-| ----------------------- | ----------------------------------- | ----------------------------------------------------------- |
-| `DB_USERNAME`           | `postgres`                          | PostgreSQL username                                         |
-| `DB_PASSWORD`           | —                                   | PostgreSQL password (**required**)                          |
-| `DEVISE_JWT_SECRET_KEY` | —                                   | JWT signing secret (**required**, min 64 chars)             |
-| `OLLAMA_BASE_URL`       | `http://host.docker.internal:11434` | Ollama API URL                                              |
-| `OLLAMA_MODEL`          | `gemma2:9b`                         | Model name to use                                           |
-| `WHISPER_MODEL`         | `base`                              | Whisper model size (`tiny`/`base`/`small`/`medium`/`large`) |
-| `FRONTEND_ORIGIN`       | `http://localhost:3000`             | Allowed frontend origin(s) for CORS (comma-separated)       |
+| Variable                       | Default                             | Description                                                 |
+| ------------------------------ | ----------------------------------- | ----------------------------------------------------------- |
+| `DB_USERNAME`                  | `postgres`                          | PostgreSQL username                                         |
+| `DB_PASSWORD`                | —                                   | PostgreSQL password (**required**)                          |
+| `DEVISE_JWT_SECRET_KEY`        | —                                   | JWT signing secret (**required**, min 64 chars)             |
+| `OLLAMA_BASE_URL`            | `http://host.docker.internal:11434` | Ollama API URL                                              |
+| `OLLAMA_MODEL`               | `gemma2:9b`                         | Chat / JSON LLM model tag                                   |
+| `OLLAMA_MODEL_LARGE`         | `gemma3:27b`                        | Optional larger model (e.g. sidebar switcher)               |
+| `OLLAMA_EMBEDDING_MODEL`     | `nomic-embed-text`                  | Ollama embeddings model for RAG                             |
+| `OLLAMA_EMBEDDING_DIMENSIONS` | `768`                              | Must match the embedding model output size                  |
+| `WHISPER_MODEL`              | `base`                              | Whisper model size (`tiny`/`base`/`small`/`medium`/`large`) |
+| `FRONTEND_ORIGIN`            | `http://localhost:3000`             | Allowed frontend origin(s) for CORS (comma-separated)       |
 
 ### Frontend `.env.local` (for local dev without Docker)
 
@@ -333,6 +385,17 @@ docker compose down -v
 - **Weakness Profile** — tracks accuracy by question type over time
 - **Band score estimation** and XP rewards
 
+### Learning profile, RAG, and AI pipelines
+
+- **Unified learning profile** — vocabulary / grammar / reading question-type weaknesses, speaking subscores, estimated band; updated from IELTS reading submits and optional APIs
+- **Session outcomes** — append-only JSON blobs for analytics
+- **Speaking feedback** — structured IELTS-style scores from a transcript (`POST /speaking_feedback`)
+- **RAG** — `kb_documents` / `kb_chunks` with pgvector similarity; `POST /rag/retrieve` and `POST /rag/ingest`
+- **Adaptive content** — LLM-generated passages + questions from band and weakness tags
+- **Learning insights** — aggregated dashboard JSON from session data
+- **Tutor chat (structured)** — natural reply plus optional corrections JSON
+- **Sidebar quick Q&A** — streaming NDJSON to Gemma (`POST /sidebar_chat`)
+
 ---
 
 ## API Reference
@@ -388,6 +451,20 @@ All protected endpoints require: `Authorization: Bearer <token>`
 | `GET`   | `/api/v1/profile` | Get current user profile |
 | `PATCH` | `/api/v1/profile` | Update profile           |
 
+### Learning profile & AI utilities (all require JWT)
+
+| Method | Path                         | Description                                      |
+| ------ | ---------------------------- | ------------------------------------------------ |
+| `GET`  | `/api/v1/learning_profile`   | Aggregated profile + weakness summaries          |
+| `POST` | `/api/v1/session_outcomes`  | Submit `raw_analysis` JSON; merges into profile |
+| `POST` | `/api/v1/speaking_feedback`  | Analyse transcript; optional `update_profile`    |
+| `POST` | `/api/v1/rag/retrieve`       | Embedding search over KB chunks (`query`, `top_k`, `kinds`) |
+| `POST` | `/api/v1/rag/ingest`         | Ingest curated KB text (chunks + embeddings)   |
+| `POST` | `/api/v1/adaptive_content`   | Generate passage + questions from weaknesses   |
+| `POST` | `/api/v1/learning_insights`  | Dashboard insights (optional `learning_data` body) |
+| `POST` | `/api/v1/tutor_chat`         | Structured tutor reply (`message`, `messages`)   |
+| `POST` | `/api/v1/sidebar_chat`       | Sidebar Q&A; streams `application/x-ndjson`      |
+
 ### WebSocket
 
 ```
@@ -438,6 +515,20 @@ ielts_weakness_profiles
 
 jwt_denylist
   id (uuid PK), jti (unique), exp
+
+learning_profiles
+  id (uuid PK), user_id (FK, unique), ielts_band_estimate, band_confidence,
+  speaking_fluency, speaking_grammar, speaking_pronunciation,
+  last_session_at, profile_version, metadata (jsonb)
+
+vocabulary_weaknesses / grammar_mistakes / learning_profile_reading_weaknesses
+  Granular weakness rows keyed by learning_profile_id
+
+session_outcomes
+  id (uuid PK), user_id (FK), session_type, raw_analysis (jsonb), band_delta_hint
+
+kb_documents / kb_chunks
+  Curated KB text; chunks include embedding (vector) for RAG
 ```
 
 ---
@@ -446,15 +537,17 @@ jwt_denylist
 
 ### Backend (RSpec)
 
+The backend container entrypoint starts the web server. For tests, override the entrypoint so only RSpec runs:
+
 ```bash
 # Run all tests
-docker compose run --rm backend bundle exec rspec
+docker compose run --rm --entrypoint "" backend bundle exec rspec
 
 # Run a specific file
-docker compose run --rm backend bundle exec rspec spec/models/ielts_user_answer_spec.rb
+docker compose run --rm --entrypoint "" backend bundle exec rspec spec/models/ielts_user_answer_spec.rb
 
-# Run with coverage
-docker compose run --rm backend bundle exec rspec --format documentation
+# Verbose output
+docker compose run --rm --entrypoint "" backend bundle exec rspec --format documentation
 ```
 
 Test files are in `backend/spec/`:
@@ -522,11 +615,31 @@ For deeper documentation on each service:
 
 ---
 
+## Implemented So Far
+
+- IELTS Reading module (passage generation, scoring, progress/training tabs)
+- IELTS Listening module MVP (AI listening set generation, answer scoring, and attempt history)
+- IELTS Writing module MVP (essay rubric grading and attempt history)
+- IELTS Speaking foundation (feedback API + pronunciation confidence in realtime chat)
+- Dedicated IELTS Speaking page (Part 1/2/3 prompts + score breakdown + attempt review)
+- Multiplayer conversation rooms MVP (room model, join/leave APIs, realtime room messages)
+- Mobile app scaffold (React Native structure + API contracts + base tests)
+- Unified dashboard progress view (cross-skill counts, average bands, recent trend)
+
+---
+
 ## Roadmap
 
-- [ ] IELTS Listening module
-- [ ] IELTS Writing module (AI essay grading)
-- [ ] IELTS Speaking module (pronunciation scoring)
-- [ ] User dashboard with progress charts
-- [ ] Multiplayer conversation rooms
-- [ ] Mobile app (React Native)
+- [~] IELTS Listening module - MVP shipped, audio playback and richer review pending
+- [~] IELTS Writing module (AI essay grading) - MVP shipped, richer prompt packs and rewrite coaching pending
+- [~] IELTS Speaking module (pronunciation scoring) - foundation + page shipped, further polish pending
+- [~] User dashboard with progress charts - unified progress endpoint + cross-skill trend card shipped, advanced analytics pending
+- [~] Multiplayer conversation rooms - MVP shipped, moderation/presence UX pending
+- [~] Mobile app (React Native) - scaffold shipped, runtime wiring pending
+
+## Next Focus: Bug-Fix Phase
+
+- Stabilize API contracts and payload validation across Listening/Writing/Speaking/Rooms
+- Fix realtime duplication/order edge cases in conversation and room channels
+- Tighten permission checks and error states for room join/leave/post flows
+- Improve UX fallback handling for empty data, loading states, and failed requests

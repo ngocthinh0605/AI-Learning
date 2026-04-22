@@ -4,6 +4,8 @@ import { Plus, MessageSquare, Flame, Star, Trash2, Brain } from "lucide-react";
 import { useAuthStore } from "../stores/useAuthStore";
 import { useConversationStore } from "../stores/useConversationStore";
 import { fetchVocabularyWords } from "../api/vocabularyApi";
+import { fetchLearningProgress } from "../api/learningProgressApi";
+import ProgressOverviewCard from "../components/dashboard/ProgressOverviewCard";
 import toast from "react-hot-toast";
 
 const TOPICS = ["Travel", "Business", "Food", "Technology", "Sports", "Health", "Education", "Daily Life"];
@@ -16,6 +18,8 @@ export default function DashboardPage() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newConvo, setNewConvo] = useState({ title: "", topic: "Travel", difficultyLevel: "intermediate" });
   const [dueWordCount, setDueWordCount] = useState(0);
+  const [progress, setProgress] = useState(null);
+  const [progressLoading, setProgressLoading] = useState(true);
 
   useEffect(() => {
     loadConversations();
@@ -24,6 +28,10 @@ export default function DashboardPage() {
     fetchVocabularyWords({ dueForReview: true })
       .then((words) => setDueWordCount(words.length))
       .catch(() => {});
+    fetchLearningProgress()
+      .then((data) => setProgress(data))
+      .catch(() => {})
+      .finally(() => setProgressLoading(false));
   }, []);
 
   async function handleCreate(e) {
@@ -64,6 +72,8 @@ export default function DashboardPage() {
         <StatCard icon={<MessageSquare className="text-accent-400" />} label="Conversations" value={conversations.length} />
         <StatCard icon={<Brain className="text-purple-400" />} label="Words Due" value={dueWordCount} />
       </div>
+
+      <ProgressOverviewCard progress={progress} loading={progressLoading} />
 
       {/* SRS nudge banner */}
       {dueWordCount > 0 && (
